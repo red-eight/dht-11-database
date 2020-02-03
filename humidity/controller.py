@@ -51,7 +51,7 @@ class TempidityController:
                     temperature real,
                     humidifier_on integer)""")
 
-            cursor.commit()
+            connection.commit()
 
     async def _write_to_database(self, datapoint):
         if not isinstance(datapoint, TempidityDataPoint):
@@ -77,7 +77,7 @@ class TempidityController:
                 temperature,
                 is_humidifier_on)
 
-            cursor.commit()
+            connection.commit()
 
     async def _start_recording_task(self):
         """Start the asynchronous recording task.
