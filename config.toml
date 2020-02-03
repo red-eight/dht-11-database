@@ -1,0 +1,10 @@
+[log]
+level='DEBUG'
+
+[sensor]
+serial_port='/dev/ttyACM0'
+baud_rate_bps=9600
+serial_timeout_seconds=5
+
+[database]
+name='tempidity_readings.db'
