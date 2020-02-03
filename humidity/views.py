@@ -24,12 +24,3 @@ async def stop_recording(request):
     await controller.stop_recording()
     
     return web.json_response(data={})
-
-
-async def create_database(request):
-    log.info('Received request to create a database.')
-
-    controller = request.app['controller']
-    await controller.create_database()
-
-    return web.json_response(data={})

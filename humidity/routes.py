@@ -16,6 +16,5 @@ def get_application(config):
 
     app.router.add_post('/start-recording', views.start_recording)
     app.router.add_post('/stop-recording', views.stop_recording)
-    app.router.add_post('/create-database', views.create_database)
 
     return app

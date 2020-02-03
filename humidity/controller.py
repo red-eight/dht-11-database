@@ -32,13 +32,13 @@ class TempidityController:
 
         self.is_humidifier_on = is_humidifier_on
         log.info(f'Reporting that humidifier is on: {self.is_humidifier_on}')
-        
+
         self.recording_task = asyncio.create_task(self._start_recording_task())
 
     async def stop_recording(self):
         await self._cleanup_task()
 
-    async def create_database(self):
+    async def _create_database(self):
         log.info(f'Creating database {self.database.name}.')
 
         with sqlite3.connect(self.database.name) as connection:
@@ -58,24 +58,22 @@ class TempidityController:
             raise TempidityError('datapoint must be of type TempidityDataPoint.')
 
         if not os.path.isfile(self.database.name):
-            await self.create_database()
+            await self._create_database()
 
-        timestamp = pendulum.DateTime.utcnow()
+        timestamp = str(pendulum.DateTime.utcnow())
         humidity = datapoint.humidity_percent
         temperature = datapoint.temperature_celsius
         is_humidifier_on = self.is_humidifier_on
 
-        log.debug(f'Adding datapoint: {(timestamp, humidity, temperature, is_humidifier_on)}')
+        args = (timestamp, humidity, temperature, is_humidifier_on)
+
+        log.debug(f'Adding datapoint: {args}')
 
         with sqlite3.connect(self.database.name) as connection:
             cursor = connection.cursor()
 
             cursor.execute(
-                'INSERT INTO sensor_data VALUES (?,?,?,?)',
-                timestamp,
-                humidity,
-                temperature,
-                is_humidifier_on)
+                'INSERT INTO sensor_data VALUES (?,?,?,?)', args)
 
             connection.commit()
 
