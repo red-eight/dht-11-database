@@ -1,9 +1,12 @@
 import asyncio
 import logging
+import os
+import statistics
 
 import pendulum
 import re
 import serial
+import sqlite3
 
 from humidity.definitions import Sensor, Database, TempidityError, TempidityDataPoint
 
@@ -23,19 +26,58 @@ class TempidityController:
         self.is_humidifier_on = False
         self.recording_task = None
 
-    async def start_recording(self):
+    async def start_recording(self, is_humidifier_on):
         if self.recording_task is not None:
             raise TempidityError('Already recording.')
 
+        self.is_humidifier_on = is_humidifier_on
+        log.info(f'Reporting that humidifier is on: {self.is_humidifier_on}')
+        
         self.recording_task = asyncio.create_task(self._start_recording_task())
 
     async def stop_recording(self):
         await self._cleanup_task()
 
-    async def set_humidifier_status(self, is_humidifier_on):
-        await self.stop_recording
-        self.is_humidifier_on = is_humidifier_on
-        await self.start_recording
+    async def create_database(self):
+        log.info(f'Creating database {self.database.name}.')
+
+        with sqlite3.connect(self.database.name) as connection:
+            cursor = connection.cursor()
+
+            cursor.execute(
+                """CREATE TABLE sensor_data (
+                    time_added text,
+                    humidity real,
+                    temperature real,
+                    humidifier_on integer)""")
+
+            cursor.commit()
+
+    async def _write_to_database(self, datapoint):
+        if not isinstance(datapoint, TempidityDataPoint):
+            raise TempidityError('datapoint must be of type TempidityDataPoint.')
+
+        if not os.path.isfile(self.database.name):
+            await self.create_database()
+
+        timestamp = pendulum.DateTime.utcnow()
+        humidity = datapoint.humidity_percent
+        temperature = datapoint.temperature_celsius
+        is_humidifier_on = self.is_humidifier_on
+
+        log.debug(f'Adding datapoint: {(timestamp, humidity, temperature, is_humidifier_on)}')
+
+        with sqlite3.connect(self.database.name) as connection:
+            cursor = connection.cursor()
+
+            cursor.execute(
+                'INSERT INTO sensor_data VALUES (?,?,?,?)',
+                timestamp,
+                humidity,
+                temperature,
+                is_humidifier_on)
+
+            cursor.commit()
 
     async def _start_recording_task(self):
         """Start the asynchronous recording task.
@@ -61,7 +103,8 @@ class TempidityController:
                 await asyncio.sleep(1)
                 duration = pendulum.Duration(minutes=1)
                 datapoints = await self._read_datapoints(duration)
-                await self._write_datapoints(datapoints)
+                chosen_datapoint = await self._process_datapoints(datapoints)
+                await self._write_to_database(chosen_datapoint)
         except asyncio.CancelledError:
             log.info(f'Cancelling task.')
             raise
@@ -98,8 +141,14 @@ class TempidityController:
         log.info(f'Read {len(datapoints)} datapoints.')
         return datapoints
 
-    async def _write_datapoints(self, datapoints):
-        pass
+    async def _process_datapoints(self, datapoints):
+        humidities = [x.humidity_percent for x in datapoints]
+        temperatures = [x.temperature_celsius for x in datapoints]
+
+        humidity_percent = statistics.median(humidities)
+        temperature_celsius = statistics.median(temperatures)
+
+        return TempidityDataPoint(humidity_percent, temperature_celsius)
         
     async def _cleanup_task(self):
         if self.recording_task is None:

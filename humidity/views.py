@@ -8,8 +8,11 @@ log = logging.getLogger(__name__)
 async def start_recording(request):
     log.info('Received request to start recording.')
 
+    data = await request.json()
+    is_humidifier_on = data['is_humidifier_on']
+
     controller = request.app['controller']
-    await controller.start_recording()
+    await controller.start_recording(is_humidifier_on)
 
     return web.json_response(data={})
 
@@ -23,16 +26,10 @@ async def stop_recording(request):
     return web.json_response(data={})
 
 
-async def set_humidifier_status(request):
-    log.info('Received request to set humidifier status.')
+async def create_database(request):
+    log.info('Received request to create a database.')
 
     controller = request.app['controller']
-    data = await request.json()
-
-    log.info(f'Data received for setting the humidifier status: {data}')
-
-    is_humidifier_on = data['is_humidifier_on']
-    await controller.set_humidifier_status(is_humidifier_on)
+    await controller.create_database()
 
     return web.json_response(data={})
-    
