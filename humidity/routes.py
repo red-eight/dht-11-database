@@ -14,6 +14,7 @@ def get_application(config):
     app = web.Application()
     app['controller'] = controller
 
+    app.router.add_get('/v1/recent-data', views.get_recent_data)
     app.router.add_post('/v1/start-recording', views.start_recording)
     app.router.add_post('/v1/stop-recording', views.stop_recording)
     app.router.add_post('/v1/plot-data', views.plot_data)

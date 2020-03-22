@@ -84,6 +84,26 @@ class TempidityController:
         else:
             log.warning('Could not find any points.')
 
+    async def get_recent_data(self, num_points: int):
+        rows = await self._query_most_recent_points(num_points)
+
+        output = []
+        for row in rows:
+            timestamp_value = row[0]
+            humidity_percent = row[1]
+            temperature_celsius = row[2]
+            humidifier_on = row[3]
+
+            entry = {
+                'timestamp': f'{pendulum.from_timestamp(timestamp_value)}',
+                'humidity_percent': humidity_percent,
+                'temperature_celsius': temperature_celsius,
+                'humidifier_on': bool(humidifier_on)
+            }
+
+            output.append(entry)
+
+        return output
 
     async def _create_database(self):
         log.info(f'Creating database {self.database.name}.')
@@ -137,6 +157,22 @@ class TempidityController:
 
             cursor.execute(
                 'SELECT * FROM sensor_data WHERE timestamp_value BETWEEN ? AND ?', args)
+
+            rows = cursor.fetchall()
+
+            return rows
+
+    async def _query_most_recent_points(self, num_points: int) -> List[Tuple]:
+        log.info(f'Querying database for {num_points} most recent datapoints.')
+
+        with sqlite3.connect(self.database.name) as connection:
+            cursor = connection.cursor()
+
+            # We're creating a tuple with only one value.
+            args = (num_points, )
+
+            cursor.execute(
+                'SELECT * FROM sensor_data ORDER BY timestamp_value DESC LIMIT ?', args)
 
             rows = cursor.fetchall()
 

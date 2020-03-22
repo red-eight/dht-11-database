@@ -38,3 +38,14 @@ async def plot_data(request):
     await controller.plot_data(start_datetime, stop_datetime)
 
     return web.json_response(data={})
+
+
+async def get_recent_data(request):
+    log.info('Received request for recent data.')
+
+    num_points = request.rel_url.query.get('n', 1)
+
+    controller = request.app['controller']
+    points = await controller.get_recent_data(num_points)
+
+    return web.json_response(data=points)

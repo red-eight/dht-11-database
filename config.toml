@@ -1,4 +1,6 @@
 [log]
+# Could be the folowing:
+# NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
 level='INFO'
 
 [sensor]
