@@ -1,5 +1,5 @@
 [log]
-level='DEBUG'
+level='INFO'
 
 [sensor]
 serial_port='/dev/ttyACM0'

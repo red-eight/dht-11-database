@@ -1,6 +1,7 @@
 import logging
 
 from aiohttp import web
+import pendulum
 
 log = logging.getLogger(__name__)
 
@@ -23,4 +24,17 @@ async def stop_recording(request):
     controller = request.app['controller']
     await controller.stop_recording()
     
+    return web.json_response(data={})
+
+
+async def plot_data(request):
+    log.info('Received request to plot humidity.')
+
+    data = await request.json()
+    start_datetime = pendulum.parse(data['start'])
+    stop_datetime = pendulum.parse(data['stop'])
+
+    controller = request.app['controller']
+    await controller.plot_data(start_datetime, stop_datetime)
+
     return web.json_response(data={})

@@ -1,10 +1,13 @@
 import asyncio
 import logging
 import os
+import re
 import statistics
+from typing import List, Tuple
 
 import pendulum
-import re
+from matplotlib import pyplot as plt
+from matplotlib import dates
 import serial
 import sqlite3
 
@@ -14,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 class TempidityController:
-    def __init__(self, sensor, database):
+    def __init__(self, sensor: Sensor, database: Database):
         if not isinstance(sensor, Sensor):
             raise TempidityError('sensor must be of type Sensor.')
 
@@ -26,7 +29,7 @@ class TempidityController:
         self.is_humidifier_on = False
         self.recording_task = None
 
-    async def start_recording(self, is_humidifier_on):
+    async def start_recording(self, is_humidifier_on: bool):
         if self.recording_task is not None:
             raise TempidityError('Already recording.')
 
@@ -38,6 +41,50 @@ class TempidityController:
     async def stop_recording(self):
         await self._cleanup_task()
 
+    async def plot_data(self, start_datetime: pendulum.DateTime, stop_datetime: pendulum.DateTime):
+        rows = await self._query_data_points_between(start_datetime, stop_datetime)
+
+        x = []
+        y_humidity = []
+        y_temperature = []
+        y_humidifier_on = []
+
+        for row in rows:
+            timestamp_value = row[0]
+            humidity_percent = row[1]
+            temperature_celsius = row[2]
+            humidifier_on = row[3]
+
+            x_value = dates.date2num(pendulum.from_timestamp(timestamp_value))
+
+            x.append(x_value)
+            y_humidity.append(humidity_percent)
+            y_temperature.append(temperature_celsius)
+            y_humidifier_on.append(humidifier_on)
+
+        num_points = len(x)
+        if num_points > 0:
+            log.info(f'Plotting {num_points} points.')
+            
+            figure = plt.figure()
+
+            axis = figure.add_subplot(3, 1, 1)
+            axis.plot_date(x, y_humidity, tz='UTC')
+            axis.set_title('Humidity (%)')
+
+            axis = figure.add_subplot(3, 1, 2)
+            axis.plot_date(x, y_temperature, tz='UTC')
+            axis.set_title('Temperature (C)')
+
+            axis = figure.add_subplot(3, 1, 3)
+            axis.plot_date(x, y_humidifier_on, tz='UTC')
+            axis.set_title('Humidifier On')
+
+            plt.show()
+        else:
+            log.warning('Could not find any points.')
+
+
     async def _create_database(self):
         log.info(f'Creating database {self.database.name}.')
 
@@ -46,28 +93,28 @@ class TempidityController:
 
             cursor.execute(
                 """CREATE TABLE sensor_data (
-                    time_added text,
+                    timestamp_value real,
                     humidity real,
                     temperature real,
                     humidifier_on integer)""")
 
             connection.commit()
 
-    async def _write_to_database(self, datapoint):
+    async def _write_to_database(self, datapoint: TempidityDataPoint):
         if not isinstance(datapoint, TempidityDataPoint):
             raise TempidityError('datapoint must be of type TempidityDataPoint.')
 
         if not os.path.isfile(self.database.name):
             await self._create_database()
 
-        timestamp = str(pendulum.DateTime.utcnow())
+        timestamp = pendulum.DateTime.utcnow().timestamp()
         humidity = datapoint.humidity_percent
         temperature = datapoint.temperature_celsius
         is_humidifier_on = self.is_humidifier_on
 
         args = (timestamp, humidity, temperature, is_humidifier_on)
 
-        log.debug(f'Adding datapoint: {args}')
+        log.info(f'Adding datapoint: {args}')
 
         with sqlite3.connect(self.database.name) as connection:
             cursor = connection.cursor()
@@ -76,6 +123,25 @@ class TempidityController:
                 'INSERT INTO sensor_data VALUES (?,?,?,?)', args)
 
             connection.commit()
+
+    async def _query_data_points_between(self, start_datetime: pendulum.DateTime, stop_datetime: pendulum.DateTime) -> List[Tuple]:
+        log.info(f'Querying database for datapoints between {start_datetime} and {stop_datetime}.')
+
+        start_timestamp = start_datetime.timestamp()
+        stop_timestamp = stop_datetime.timestamp()
+
+        with sqlite3.connect(self.database.name) as connection:
+            cursor = connection.cursor()
+
+            args = (start_timestamp, stop_timestamp)
+
+            cursor.execute(
+                'SELECT * FROM sensor_data WHERE timestamp_value BETWEEN ? AND ?', args)
+
+            rows = cursor.fetchall()
+
+            return rows
+
 
     async def _start_recording_task(self):
         """Start the asynchronous recording task.
