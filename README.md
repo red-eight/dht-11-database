@@ -1,7 +1,7 @@
 # dht-11-database
 Reads humidity and temperature from a dht-11 sensor and saves it in an sqlite database.
 This application is a web server with a REST interface.
-The REST endpoints all you to:
+The REST endpoints allow you to:
 
 - Start reading and saving points into a database
 - Stop reading and saving points into a database
